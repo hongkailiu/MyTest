@@ -20,7 +20,9 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.mime.HttpMultipartMode;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
+import org.apache.http.entity.mime.content.ContentBody;
 import org.apache.http.entity.mime.content.FileBody;
+import org.apache.http.entity.mime.content.InputStreamBody;
 import org.apache.http.entity.mime.content.StringBody;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -52,18 +54,22 @@ public class UploadArtifactActions extends Notifier {
         final BuildListener listener) throws InterruptedException, IOException {
         String filePath = "test.txt";
         String target = "mhweb-service-0.9.jar";
-        copyFileFromSlaveToMaster(build, listener, filePath, target);
+        //long l1 = copyFileFromSlaveToMaster(build, listener, filePath, target);
 
         String filePath1 = "pom.xml";
         String pom = "mhweb-service-0.9.pom";
-        copyFileFromSlaveToMaster(build, listener, filePath1, pom);
+        //long l2 = copyFileFromSlaveToMaster(build, listener, filePath1, pom);
 
         listener.getLogger().println("uploading to nexus ... ");
-        uploadArtifact(pom, target);
+        File pomFile = new File(pom);
+        InputStream pomIS = new FileInputStream(pomFile);
+        File targetFile = new File(target);
+        InputStream artifactIS = new FileInputStream(target);
+        uploadArtifact(pomIS, pomFile.length(), artifactIS, targetFile.length());
         return true;
     }
 
-    private void copyFileFromSlaveToMaster(AbstractBuild build, BuildListener listener, String filePath, String target)
+    private long copyFileFromSlaveToMaster(AbstractBuild build, BuildListener listener, String filePath, String target)
         throws IOException, InterruptedException {
 
         listener.getLogger().println("start uploading ... : " + filePath);
@@ -73,11 +79,12 @@ public class UploadArtifactActions extends Notifier {
         File tempFile = new File(target);
         listener.getLogger().println("save to file: " + tempFile.getAbsolutePath());
         FileUtils.copyInputStreamToFile(is, tempFile);
-
+        listener.getLogger().println("file length: : " + tempFile.length());
+        return tempFile.length();
     }
 
     // curl -v -F "r=thirdparty" -F "hasPom=true" -F "e=jar" -F "file=@mhweb-service-0.9.pom" -F "file=@mhweb-service-0.9.jar" -u admin:admin123 http://142.133.111.170:8081/service/local/artifact/maven/content
-    private void uploadArtifact(String pom, String target) throws IOException {
+    private void uploadArtifact(InputStream pom, long l1, InputStream target, long l2) throws IOException {
         //CloseableHttpClient client = HttpClientBuilder.create().build();
 
         CredentialsProvider provider = new BasicCredentialsProvider();
@@ -91,11 +98,16 @@ public class UploadArtifactActions extends Notifier {
         StringBody stringBody2 = new StringBody("true", ContentType.MULTIPART_FORM_DATA);
         StringBody stringBody3 = new StringBody("jar", ContentType.MULTIPART_FORM_DATA);
 
-        File file1 = new File(pom);
+        ContentBody cb1 = new InputStreamKnownSizeBody(pom, l1, ContentType.APPLICATION_OCTET_STREAM, "mhweb-service-0.9.pom");
+        ContentBody cb2 = new InputStreamKnownSizeBody(target, l2, ContentType.APPLICATION_OCTET_STREAM, "mhweb-service-0.9.jar");
+
+        //FileBody
+        //File file = new File(pom);
+        /*File file1 = new File(pom);
         FileBody fileBody1 = new FileBody(file1, ContentType.DEFAULT_BINARY);
 
         File file2 = new File(target);
-        FileBody fileBody2 = new FileBody(file2, ContentType.DEFAULT_BINARY);
+        FileBody fileBody2 = new FileBody(file2, ContentType.DEFAULT_BINARY);*/
 
         //
         MultipartEntityBuilder builder = MultipartEntityBuilder.create();
@@ -103,8 +115,10 @@ public class UploadArtifactActions extends Notifier {
         builder.addPart("r", stringBody1);
         builder.addPart("hasPom", stringBody2);
         builder.addPart("e", stringBody3);
-        builder.addPart("file", fileBody1);
-        builder.addPart("file", fileBody2);
+        //builder.addBinaryBody("file1", pom, ContentType.DEFAULT_BINARY, "mhweb-service-0.9.pom");
+        //builder.addBinaryBody("file2", target, ContentType.DEFAULT_BINARY, "mhweb-service-0.9.jar");
+        builder.addPart("file", cb1);
+        builder.addPart("file", cb2);
 
         HttpEntity entity = builder.build();
         //
