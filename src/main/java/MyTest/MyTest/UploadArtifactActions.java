@@ -10,8 +10,10 @@ import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.BuildStepMonitor;
 import hudson.tasks.Notifier;
 import hudson.tasks.Publisher;
+import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.FileUtils;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHeaders;
 import org.apache.http.HttpResponse;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
@@ -34,6 +36,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 
 
 public class UploadArtifactActions extends Notifier {
@@ -52,18 +55,18 @@ public class UploadArtifactActions extends Notifier {
         final BuildListener listener) throws InterruptedException, IOException {
         String filePath = "test.txt";
         String target = "mhweb-service-0.9.jar";
-        copyFileFromSlaveToMaster(build, listener, filePath, target);
+        long l1 = copyFileFromSlaveToMaster(build, listener, filePath, target);
 
         String filePath1 = "pom.xml";
         String pom = "mhweb-service-0.9.pom";
-        copyFileFromSlaveToMaster(build, listener, filePath1, pom);
+        long l2 = copyFileFromSlaveToMaster(build, listener, filePath1, pom);
 
         listener.getLogger().println("uploading to nexus ... ");
-        uploadArtifact(pom, target);
+        uploadArtifact(pom, l1, target, l2);
         return true;
     }
 
-    private void copyFileFromSlaveToMaster(AbstractBuild build, BuildListener listener, String filePath, String target)
+    private long copyFileFromSlaveToMaster(AbstractBuild build, BuildListener listener, String filePath, String target)
         throws IOException, InterruptedException {
 
         listener.getLogger().println("start uploading ... : " + filePath);
@@ -73,29 +76,34 @@ public class UploadArtifactActions extends Notifier {
         File tempFile = new File(target);
         listener.getLogger().println("save to file: " + tempFile.getAbsolutePath());
         FileUtils.copyInputStreamToFile(is, tempFile);
-
+        return tempFile.length();
     }
 
     // curl -v -F "r=thirdparty" -F "hasPom=true" -F "e=jar" -F "file=@mhweb-service-0.9.pom" -F "file=@mhweb-service-0.9.jar" -u admin:admin123 http://142.133.111.170:8081/service/local/artifact/maven/content
-    private void uploadArtifact(String pom, String target) throws IOException {
+    private void uploadArtifact(String pom, long l1, String target, long l2) throws IOException {
         //CloseableHttpClient client = HttpClientBuilder.create().build();
 
-        CredentialsProvider provider = new BasicCredentialsProvider();
+/*        CredentialsProvider provider = new BasicCredentialsProvider();
         UsernamePasswordCredentials credentials = new UsernamePasswordCredentials("admin", "admin123");
-        provider.setCredentials(AuthScope.ANY, credentials);
-        CloseableHttpClient client = HttpClientBuilder.create().setDefaultCredentialsProvider(provider).build();
+        provider.setCredentials(new AuthScope("HOST", 8081), credentials);*/
+        CloseableHttpClient client = HttpClientBuilder.create().build();
 
-        HttpPost post = new HttpPost("http://142.133.111.170:8081/service/local/artifact/maven/content");
+        HttpPost post = new HttpPost("http://142.133.111.178:8081/service/local/artifact/maven/content");
+
+        String auth = "admin" + ":" + "admin123";
+        byte[] encodedAuth = Base64.encodeBase64(auth.getBytes(Charset.forName("ISO-8859-1")));
+        String authHeader = "Basic " + new String(encodedAuth);
+        post.setHeader(HttpHeaders.AUTHORIZATION, authHeader);
 
         StringBody stringBody1 = new StringBody("thirdparty", ContentType.MULTIPART_FORM_DATA);
         StringBody stringBody2 = new StringBody("true", ContentType.MULTIPART_FORM_DATA);
         StringBody stringBody3 = new StringBody("jar", ContentType.MULTIPART_FORM_DATA);
 
-        File file1 = new File(pom);
-        FileBody fileBody1 = new FileBody(file1, ContentType.DEFAULT_BINARY);
+        //File file1 = new File(pom);
+        InputStreamBodyWithLength fileBody1 = new InputStreamBodyWithLength(new FileInputStream(pom), "mhweb-service-0.9.pom", l1);
 
-        File file2 = new File(target);
-        FileBody fileBody2 = new FileBody(file2, ContentType.DEFAULT_BINARY);
+        //File file2 = new File(target);
+        InputStreamBodyWithLength fileBody2 = new InputStreamBodyWithLength(new FileInputStream(target), "mhweb-service-0.9.jar", l2);
 
         //
         MultipartEntityBuilder builder = MultipartEntityBuilder.create();
