@@ -10,6 +10,7 @@ import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.BuildStepMonitor;
 import hudson.tasks.Notifier;
 import hudson.tasks.Publisher;
+import org.apache.commons.compress.utils.IOUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -30,6 +31,7 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.kohsuke.stapler.DataBoundConstructor;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -65,7 +67,17 @@ public class UploadArtifactActions extends Notifier {
         InputStream pomIS = new FileInputStream(pomFile);
         File targetFile = new File(target);
         InputStream artifactIS = new FileInputStream(target);
-        uploadArtifact(pomIS, pomFile.length(), artifactIS, targetFile.length());
+        //uploadArtifact(pomIS, pomFile.length(), artifactIS, targetFile.length());
+
+        byte[] data1 = IOUtils.toByteArray(pomIS);
+        InputStream pomBAIS = new ByteArrayInputStream(data1);
+        byte[] data2 = IOUtils.toByteArray(artifactIS);
+        InputStream artifactBAIS = new ByteArrayInputStream(data2);
+
+        listener.getLogger().println("pomBAIS size : " + data1.length);
+        listener.getLogger().println("artifactBAIS size : " + data2.length);
+        listener.getLogger().println("pom : " + new String(data1));
+        uploadArtifact(pomBAIS, data1.length, artifactBAIS, data2.length);
         return true;
     }
 
@@ -92,14 +104,14 @@ public class UploadArtifactActions extends Notifier {
         provider.setCredentials(AuthScope.ANY, credentials);
         CloseableHttpClient client = HttpClientBuilder.create().setDefaultCredentialsProvider(provider).build();
 
-        HttpPost post = new HttpPost("http://142.133.111.170:8081/service/local/artifact/maven/content");
+        HttpPost post = new HttpPost("http://142.133.111.178:8081/service/local/artifact/maven/content");
 
         StringBody stringBody1 = new StringBody("thirdparty", ContentType.MULTIPART_FORM_DATA);
         StringBody stringBody2 = new StringBody("true", ContentType.MULTIPART_FORM_DATA);
         StringBody stringBody3 = new StringBody("jar", ContentType.MULTIPART_FORM_DATA);
 
-        ContentBody cb1 = new InputStreamKnownSizeBody(pom, l1, ContentType.APPLICATION_OCTET_STREAM, "mhweb-service-0.9.pom");
-        ContentBody cb2 = new InputStreamKnownSizeBody(target, l2, ContentType.APPLICATION_OCTET_STREAM, "mhweb-service-0.9.jar");
+        InputStreamKnownSizeBody cb1 = new InputStreamKnownSizeBody(pom, l1, ContentType.DEFAULT_BINARY, "pom.xml");
+        InputStreamKnownSizeBody cb2 = new InputStreamKnownSizeBody(target, l2, ContentType.DEFAULT_BINARY, "mhweb-service-0.9.jar");
 
         //FileBody
         //File file = new File(pom);
