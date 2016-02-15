@@ -1,4 +1,4 @@
-package MyTest.MyTest;
+package MyTest.MyTest.artifact;
 
 import org.apache.http.entity.mime.content.InputStreamBody;
 
