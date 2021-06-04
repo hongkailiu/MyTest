@@ -21,7 +21,7 @@
     <url>https://wiki.jenkins-ci.org/display/JENKINS/TODO+Plugin</url>
 
     <properties>
-        <httpclient.version>4.5.1</httpclient.version> <!-- 4.3.6 --> <!-- 4.4-beta1 -->
+        <httpclient.version>4.5.13</httpclient.version> <!-- 4.3.6 --> <!-- 4.4-beta1 -->
     </properties>
 
     <licenses>
